@@ -12,25 +12,47 @@ class App extends Component {
     endgame: false,
     move: "O",
     board: new Array(9),
-    result: ""
+    result: "",
+    message: "",
+    pattern: Array(0),
   }
 
-  makeMove = (pos) => {
-    const board = [...this.state.board];
-      board[pos] = this.state.move;
-      this.setState({board: board}, () => {alert("MOVE")});
+  WinConditions = [
+    [0,1,2],
+    [3,4,5],
+    [6,7,8],
+    [0,3,6],
+    [1,4,7],
+    [2,5,8],
+    [0,4,8],
+    [2,4,6]
+  ];
+
+  tmpBoard = [null, null, null, null, null, null, null, null, null];
+
+  updateBoard = () => {
+      this.setState({board: this.tmpBoard});
   }
 
-  isWin = (board) => {
-    
-    for (let i=0; i<3; i++)
+  isWinner = (board, move) => {
+    for(let i=0; i<8; i++)
     {
-      if ((board[i] == board[i+3]) && (board[i] == board[i+6]) && (board[i])) return true;
-      if ((board[i*3] != board[i*3+1]) && (board[i*3] == board[i*3+2]) && (board[i*3])) return true;
+      let allConds = true;
+      for (let j=0; j<3; j++)
+      {
+        let p = this.WinConditions[i][j];
+        if(board[p] !== move)
+        {
+          allConds = false;
+          break;
+        }
+      }
+      if (allConds)
+      {
+        return this.WinConditions[i];
+      } 
     }
-
-    if (board[0] == board[4] && board[0] == board[8] && board[0]) return true;
-    if (board[2] == board[4] && board[2] == board[6] && board[2]) return true;
+    
     return false;
 
   }
@@ -44,74 +66,131 @@ class App extends Component {
 
   }
 
-  isEndGame = (board) => {
-    if (this.isWin(board))
+  isEndGame = (board, move) => {
+    let pattern = this.isWinner(board,move);
+    if (pattern)
     {
-      this.setState({endgame: true});
-      if (this.state.move == "O") this.setState({result: "You win!"});
-      else this.setState({result: "You lost!"});
+      this.setState({endgame: true, pattern: pattern});
+      if (move == "O") this.setState({result: "win", message: "You win!"});
+      else this.setState({result: "loss", message: "You lost!"});
+      return true;
     }
-    else if (this.isDraw(board)) this.setState({endgame: true, result: "You draw!"});
+    else if (this.isDraw(board)) this.setState({endgame: true, result: "draw", message: "You draw!"});
     else return false;
-    return true;
+
   }
 
   botMove = () => {
     let legalMoves = Array();
+    let loseThreads = Array();
     for (let i=0; i<9; i++)
     {
-      if (!this.state.board[i])
+      if (!this.tmpBoard[i])
       {
-        const board = [...this.state.board]
-        board[i] = this.state.move;
-        if (this.isEndGame(board))
+        const board = [...this.tmpBoard];
+        board[i] = "X";
+        if (this.isWinner(board, "X"))
         {
-          const board = [...this.state.board];
-          board[i] = "X";
-          this.setState({board: board}, () => {this.isEndGame(this.state.board)});
+          this.tmpBoard[i] = "X";
           return;
+        }
+        
+        board[i] = "O";
+        if (this.isWinner(board, "O"))
+        {
+          loseThreads.push(i);
         }
         legalMoves.push(i);
 
       }
     }
     let move = legalMoves[Math.floor(Math.random()*legalMoves.length)];
-    const board = [...this.state.board];
-    board[move] = "X";
-    this.setState({board: board, move: "O"}, () => {this.isEndGame(this.state.board)});
+    if (loseThreads.length > 0) move = loseThreads[Math.floor(Math.random()*loseThreads.length)];
+    this.tmpBoard[move] = "X";
 
   }
 
   onPress = (pos) => {
     if(!this.state.endgame && !this.state.board[pos] && this.state.move == "O")
     {
-      const board = [...this.state.board];
-      board[pos] = "O";
-      this.setState({board: board}, () => {
-        if (this.isEndGame(this.state.board))
-        {
+      this.tmpBoard[pos] = "O";
+      if (this.isEndGame(this.tmpBoard, "O"))
+      {
+          this.updateBoard();
           return;
-        }
-        this.setState({move: "X"}, () =>
-        {
-          this.botMove();
-          // this.isEndGame(this.state.board);
-        });
-        
-      });
-      
+      }
+      this.botMove();
+      this.updateBoard();
+      this.isEndGame(this.tmpBoard, "X");
 
     }
   }
 
+  onReset = () => {
+    this.setState({
+      endgame: false,
+      move: "O",
+      board: new Array(9),
+      result: "",
+      message: "",
+      pattern: Array(0),
+    })
+
+    this.tmpBoard = [null, null, null, null, null, null, null, null, null];
+  }
+
   renderMessage(){
     if(this.state.endgame)
-       return <Text>{this.state.result}</Text>;
+       return <Text style={styles.message_text}>{this.state.message}</Text>;
     else
     {
-      return <Text>Move: {this.state.move}</Text>
+      return <Text style={styles.message_text}>Your move: O</Text>
     }
     return null;
+ }
+
+ renderBoard(){
+    let boxes = []
+    for (let i=0; i<9; i++)
+    {
+        boxes.push(
+          <TouchableOpacity style={[styles.box, 
+          (this.state.result == "win" && this.state.pattern.includes(i)) ? styles.box_win : null, 
+          (this.state.result == "loss" && this.state.pattern.includes(i)) ? styles.box_loss : null]} 
+            onPress={() => this.onPress(i)}>
+            <Text style={styles.box_text}>{ this.state.board[i] }</Text>
+          </TouchableOpacity>
+        )
+      
+      
+    }
+    return <View style={styles.game_board}>{boxes}</View>
+ }
+
+ renderResetButton()
+ {
+   if(this.state.endgame)
+   {
+     return (
+      <TouchableOpacity
+        style={styles.btn}
+          onPress={() => this.onReset()}>
+        <Text style={styles.btn_text}>Reset</Text>
+
+      </TouchableOpacity>
+     )
+   }
+ }
+
+ renderFooter()
+ {
+   return (
+    <View style={styles.footer}>
+      <Text style={styles.footer_text}>
+        Author: barto14753
+      </Text>
+    </View>
+   );
  }
 
  render() {
@@ -125,44 +204,10 @@ class App extends Component {
           { this.renderMessage() }
         </View>
 
-        <View style={styles.game_board}>
-        <TouchableOpacity style={styles.box} onPress={() => this.onPress(0)}>
-          <Text style={styles.box_text}>{ this.state.board[0] }</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.box} onPress={() => this.onPress(1)}>
-        <Text style={styles.box_text}>{ this.state.board[1] }</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.box} onPress={() => this.onPress(2)}>
-        <Text style={styles.box_text}>{ this.state.board[2] }</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.box} onPress={() => this.onPress(3)}>
-        <Text style={styles.box_text}>{ this.state.board[3] }</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.box} onPress={() => this.onPress(4)}>
-        <Text style={styles.box_text}>{ this.state.board[4] }</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.box} onPress={() => this.onPress(5)}>
-        <Text style={styles.box_text}>{ this.state.board[5] }</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.box} onPress={() => this.onPress(6)}>
-        <Text style={styles.box_text}>{ this.state.board[6] }</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.box} onPress={() => this.onPress(7)}>
-        <Text style={styles.box_text}>{ this.state.board[7] }</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.box} onPress={() => this.onPress(8)}>
-        <Text style={styles.box_text}>{ this.state.board[8] }</Text>
-        </TouchableOpacity>
-
-      </View>
+        {this.renderBoard()}
+        {this.renderResetButton()}
+        {this.renderFooter()}
+        
 
       </View>
       
@@ -190,12 +235,19 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
 
+  message_text:
+  {
+    fontWeight: "400",
+    fontSize: 40,
+  },
+
   game_board: {
     flexWrap: "wrap",
     flexDirection: "row",
     backgroundColor: "aliceblue",
     maxHeight: 360,
-    marginTop: 100,
+    marginTop: 20,
+    marginBottom: 10,
     maxWidth: 360,
     alignContent: 'center',
     borderRadius: 10,
@@ -215,7 +267,40 @@ const styles = StyleSheet.create({
     fontSize: 120,
     fontWeight: "700",
     textAlign: "center",
+  },
+
+  box_win: {
+    backgroundColor: "green",
+  },
+
+  box_loss: {
+    backgroundColor: "red",
+  },
+
+  footer: {
+    marginTop: 0,
+  },
+
+  footer_text: {
+    fontWeight: "700",
+  },
+
+  btn:
+  {
+    backgroundColor: "red",
+    paddingLeft: 30,
+    paddingRight: 30,
+    paddingTop: 15,
+    paddingBottom: 15,
+    borderRadius: 20,
+    marginBottom: 10,
+  },
+
+  btn_text: {
+    fontSize: 40,
+    color: "white",
   }
+
 })
 
 export default App;
